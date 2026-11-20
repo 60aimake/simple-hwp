@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>한글 파일 열기 — 60AI만들기</title>
+<style>
+:root{--bg:#f6f7fa;--card:#fff;--line:#dde2ea;--txt:#171c28;--dim:#687187;
+ --bl:#2f6fde;--gr:#1f9d55;--rd:#d9453d;--warn:#8a6100;--warnbg:#fff6e0}
+@media (prefers-color-scheme:dark){
+ :root{--bg:#0e1117;--card:#161b24;--line:#2a3140;--txt:#e9edf5;--dim:#98a2b6;
+  --bl:#5b93ff;--gr:#49c47f;--rd:#ff6b63;--warn:#ffd98a;--warnbg:#3a2f12}
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--txt);
+ font:18px/1.6 "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+ padding:20px 16px 60px;-webkit-text-size-adjust:100%}
+.wrap{max-width:720px;margin:0 auto}
+h1{font-size:27px;margin:0 0 4px}
+p.sub{color:var(--dim);margin:0 0 20px;font-size:16px}
+
+#drop{border:3px dashed var(--line);border-radius:18px;background:var(--card);
+ padding:34px 18px;text-align:center;transition:.15s}
+#drop.hot{border-color:var(--bl);background:rgba(47,111,222,.08)}
+#drop .big{font-size:21px;font-weight:700;margin-bottom:6px}
+#drop .sm{color:var(--dim);font-size:15px;margin-bottom:18px}
+.btn{font:inherit;font-weight:700;border:0;border-radius:12px;padding:15px 26px;
+ cursor:pointer;background:var(--bl);color:#fff;font-size:18px}
+.btn.g{background:var(--gr)}
+.btn.o{background:transparent;color:var(--txt);border:2px solid var(--line);font-weight:600}
+.btn:active{transform:translateY(1px)}
+
+#out{display:none;margin-top:22px}
+.name{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);
+ border-radius:12px;padding:12px 14px;font-size:16px;margin-bottom:14px;word-break:break-all}
+.tabs{display:flex;gap:8px;margin-bottom:12px}
+.tabs button{flex:1;font:inherit;font-weight:700;font-size:17px;padding:13px 8px;border-radius:12px;
+ border:2px solid var(--line);background:transparent;color:var(--dim);cursor:pointer}
+.tabs button.on{background:var(--bl);border-color:var(--bl);color:#fff}
+.pane{display:none}
+.pane.on{display:block}
+#shot{width:100%;border:1px solid var(--line);border-radius:12px;background:#fff;display:block}
+#ta{width:100%;height:46vh;min-height:240px;font:17px/1.7 inherit;padding:14px;
+ border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--txt);resize:vertical}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.row .btn{flex:1 1 150px}
+
+.msg{border-radius:12px;padding:14px 16px;margin-top:16px;font-size:16px;line-height:1.65}
+.msg.bad{background:rgba(217,69,61,.12);border:1px solid var(--rd);color:var(--txt)}
+.msg.warn{background:var(--warnbg);border:1px solid var(--warn);color:var(--txt)}
+h2{font-size:19px;margin:30px 0 8px}
+ul{padding-left:22px;margin:8px 0} li{margin:5px 0}
+footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);color:var(--dim);font-size:15px}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(140%);
+ background:#1b2030;color:#fff;padding:14px 22px;border-radius:12px;font-size:16px;
+ transition:.25s;z-index:9;box-shadow:0 6px 24px rgba(0,0,0,.3)}
+#toast.on{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>한글 파일 열기</h1>
+<p class="sub">.hwp · .hwpx 둘 다 열립니다. 설치할 것이 없습니다.</p>
+
+<div id="drop">
+  <div class="big">여기에 한글 파일을 끌어다 놓으세요</div>
+  <div class="sm">또는 아래 단추를 누르십시오</div>
+  <button class="btn" id="pick">파일 고르기</button>
+  <input type="file" id="f" accept=".hwpx,.hwp" style="display:none">
+</div>
+
+<div id="out">
+  <div class="name">📄 <b id="fname"></b></div>
+  <div class="tabs">
+    <button id="t1" class="on">보이는 그대로</button>
+    <button id="t2">글자만</button>
+  </div>
+  <div class="pane on" id="p1">
+    <img id="shot" alt="문서 첫 장">
+    <div class="row">
+      <button class="btn g" id="save">사진으로 저장</button>
+    </div>
+  </div>
+  <div class="pane" id="p2">
+    <textarea id="ta" readonly></textarea>
+    <div class="row">
+      <button class="btn g" id="copy">글자 복사</button>
+      <button class="btn o" id="dl">글 파일로 저장</button>
+    </div>
+  </div>
+</div>
+
+<div id="msg"></div>
+
+<h2>무엇이 되나</h2>
+<ul>
+  <li><b>보이는 그대로</b> — 문서의 <b>첫 장</b>을 그림으로 보여줍니다. 서식이 그대로입니다</li>
+  <li><b>글자만</b> — 글자를 전부 뽑아 줍니다. 복사해서 붙여 넣으시면 됩니다</li>
+  <li>파일은 <b>이 기기 밖으로 나가지 않습니다.</b> 인터넷으로 보내지 않습니다</li>
+</ul>
+
+<h2>안 되는 것</h2>
+<ul>
+  <li><b>고치기는 안 됩니다.</b> 보고 복사하는 것까지입니다</li>
+  <li><b>첫 장만</b> 그림으로 나옵니다. 글자는 전부 나옵니다</li>
+  <li>옛 형식 <b>.hwp</b> 도 됩니다. 암호가 걸린 문서는 글자를 못 뽑습니다</li>
+</ul>
+
+<footer>📺 <b>60AI만들기</b> — 60대 이상도 AI 다 할 수 있다</footer>
+</div>
+<div id="toast"></div>
+
+<script>
+/* ───────── 아주 작은 ZIP 읽기 — 바깥 라이브러리를 쓰지 않는다 ─────────
+   hwpx 는 속이 ZIP 이다.  브라우저가 가진 DecompressionStream 으로 푼다 */
+function u16(d,p){ return d[p] | (d[p+1]<<8); }
+function u32(d,p){ return (d[p] | (d[p+1]<<8) | (d[p+2]<<16) | (d[p+3]<<24)) >>> 0; }
+
+function zipEntries(buf){
+  var d = new Uint8Array(buf), i, eocd = -1;
+  for(i = d.length - 22; i >= 0 && i > d.length - 70000; i--){
+    if(u32(d,i) === 0x06054b50){ eocd = i; break; }
+  }
+  if(eocd < 0) throw new Error('ZIP 아님');
+  var n = u16(d, eocd + 10), off = u32(d, eocd + 16), p = off, list = [];
+  for(i = 0; i < n; i++){
+    if(u32(d,p) !== 0x02014b50) break;
+    var method = u16(d, p + 10);
+    var csize  = u32(d, p + 20);
+    var nlen   = u16(d, p + 28);
+    var elen   = u16(d, p + 30);
+    var clen   = u16(d, p + 32);
+    var lo     = u32(d, p + 42);
+    var name   = new TextDecoder('utf-8').decode(d.subarray(p + 46, p + 46 + nlen));
+    list.push({name:name, method:method, csize:csize, local:lo});
+    p += 46 + nlen + elen + clen;
+  }
+  return {d:d, list:list};
+}
+function rawOf(z, e){
+  var d = z.d, p = e.local;
+  if(u32(d,p) !== 0x04034b50) throw new Error('조각이 깨졌습니다');
+  var nlen = u16(d, p + 26), elen = u16(d, p + 28);
+  var s = p + 30 + nlen + elen;
+  return d.subarray(s, s + e.csize);
+}
+function inflate(raw){
+  if(typeof DecompressionStream === 'undefined') return Promise.reject(new Error('구형'));
+  var ds = new DecompressionStream('deflate-raw');
+  var w = ds.writable.getWriter();
+  /* 쓰기 약속을 반드시 받아 둔다 — 안 그러면 「처리 안 된 거부」가 콘솔에 뜬다 */
+  w.write(raw).catch(function(){});
+  w.close().catch(function(){});
+  var reader = ds.readable.getReader(), chunks = [], total = 0;
+  function join(){
+    var out = new Uint8Array(total), at = 0;
+    for(var i = 0; i < chunks.length; i++){ out.set(chunks[i], at); at += chunks[i].length; }
+    return out;
+  }
+  /* .hwp 의 본문 조각은 뒤에 쓰레기가 붙어 있는 일이 있다.
+     그때 그냥 실패시키지 않고 **거기까지 받은 것**을 쓴다 — 2026-11-18 실측 */
+  return new Promise(function(res, rej){
+    (function pump(){
+      reader.read().then(function(r){
+        if(r.done){ res(join()); return; }
+        chunks.push(r.value); total += r.value.length; pump();
+      }, function(e){
+        if(total > 0) res(join()); else rej(e);
+      });
+    })();
+  });
+}
+function getFile(z, name){
+  var e = null, i;
+  for(i = 0; i < z.list.length; i++){ if(z.list[i].name === name){ e = z.list[i]; break; } }
+  if(!e) return Promise.resolve(null);
+  var raw = rawOf(z, e);
+  if(e.method === 0) return Promise.resolve(raw);
+  return inflate(raw);
+}
+function findName(z, re){
+  for(var i = 0; i < z.list.length; i++){ if(re.test(z.list[i].name)) return z.list[i].name; }
+  return null;
+}
+
+
+/* ───────── 옛 .hwp 읽기 — OLE2(복합문서) 리더.  바깥 라이브러리 없음 ─────────
+   .hwp 안에는 PrvImage(첫 장 그림)·PrvText(미리보기 글)·BodyText/Section*(본문)이 들어 있다 */
+function isOle(d){
+  return d[0]===0xD0 && d[1]===0xCF && d[2]===0x11 && d[3]===0xE0 &&
+         d[4]===0xA1 && d[5]===0xB1 && d[6]===0x1A && d[7]===0xE1;
+}
+function cfbOpen(buf){
+  var d = new Uint8Array(buf), dv = new DataView(buf);
+  if(!isOle(d)) throw new Error('OLE 아님');
+  var SS = 1 << dv.getUint16(30, true);
+  var MS = 1 << dv.getUint16(32, true);
+  var dirStart   = dv.getUint32(48, true);
+  var miniFatSt  = dv.getUint32(60, true);
+  var difatStart = dv.getUint32(68, true);
+  var i, v, off;
+
+  var difat = [];
+  for(i = 0; i < 109; i++){ v = dv.getUint32(76 + i*4, true); if(v < 0xFFFFFFFA) difat.push(v); }
+  var s = difatStart, guard = 0;
+  while(s < 0xFFFFFFFA && guard++ < 2000){
+    off = (s + 1) * SS;
+    for(i = 0; i < (SS/4) - 1; i++){ v = dv.getUint32(off + i*4, true); if(v < 0xFFFFFFFA) difat.push(v); }
+    s = dv.getUint32(off + SS - 4, true);
+  }
+  var fat = [];
+  for(i = 0; i < difat.length; i++){
+    off = (difat[i] + 1) * SS;
+    if(off + SS > d.length) break;
+    for(var j = 0; j < SS/4; j++) fat.push(dv.getUint32(off + j*4, true));
+  }
+  function chain(start, table){
+    var out = [], c = start, g = 0;
+    while(c < 0xFFFFFFFA && g++ < 500000){ out.push(c); c = table[c]; if(c === undefined) break; }
+    return out;
+  }
+  function readBig(start, size){
+    var ch = chain(start, fat), out = new Uint8Array(ch.length * SS);
+    for(var k = 0; k < ch.length; k++){
+      var o = (ch[k] + 1) * SS;
+      out.set(d.subarray(o, Math.min(o + SS, d.length)), k * SS);
+    }
+    return (size != null && size <= out.length) ? out.subarray(0, size) : out;
+  }
+  var dirB = readBig(dirStart, null);
+  var entries = [];
+  for(var p = 0; p + 128 <= dirB.length; p += 128){
+    var nlen = dirB[p+64] | (dirB[p+65] << 8);
+    if(nlen < 2) continue;
+    var nm = '';
+    for(i = 0; i < nlen - 2; i += 2) nm += String.fromCharCode(dirB[p+i] | (dirB[p+i+1] << 8));
+    var edv = new DataView(dirB.buffer, dirB.byteOffset + p, 128);
+    entries.push({ name:nm, type:dirB[p+66], start:edv.getUint32(116, true), size:edv.getUint32(120, true) });
+  }
+  var root = null;
+  for(i = 0; i < entries.length; i++){ if(entries[i].type === 5){ root = entries[i]; break; } }
+
+  var miniFat = null, miniData = null;
+  function ensureMini(){
+    if(miniFat) return;
+    miniFat = [];
+    var mb = readBig(miniFatSt, null), mdv = new DataView(mb.buffer, mb.byteOffset, mb.length);
+    for(var k = 0; k + 4 <= mb.length; k += 4) miniFat.push(mdv.getUint32(k, true));
+    miniData = root ? readBig(root.start, root.size) : new Uint8Array(0);
+  }
+  function read(e){
+    if(!e) return null;
+    if(e.size >= 4096) return readBig(e.start, e.size);
+    ensureMini();
+    var ch = chain(e.start, miniFat), out = new Uint8Array(ch.length * MS);
+    for(var k = 0; k < ch.length; k++){
+      var o = ch[k] * MS;
+      out.set(miniData.subarray(o, Math.min(o + MS, miniData.length)), k * MS);
+    }
+    return out.subarray(0, e.size);
+  }
+  function find(name){
+    for(var k = 0; k < entries.length; k++){ if(entries[k].name === name && entries[k].type === 2) return entries[k]; }
+    return null;
+  }
+  function findAll(re){
+    var r = [];
+    for(var k = 0; k < entries.length; k++){ if(entries[k].type === 2 && re.test(entries[k].name)) r.push(entries[k]); }
+    r.sort(function(a,b){ return a.name.localeCompare(b.name, undefined, {numeric:true}); });
+    return r;
+  }
+  return { read:read, find:find, findAll:findAll };
+}
+/* HWP5 본문 레코드에서 글자만 뽑는다 */
+function hwpRecordsToText(buf){
+  var dv = new DataView(buf.buffer, buf.byteOffset, buf.length);
+  var p = 0, paras = [];
+  var WIDE = {1:1,2:1,3:1,11:1,12:1,14:1,15:1,16:1,17:1,18:1,21:1,22:1,23:1};
+  var INLINE = {4:1,5:1,6:1,7:1,8:1,9:1,19:1,20:1};
+  while(p + 4 <= buf.length){
+    var h = dv.getUint32(p, true); p += 4;
+    var tag = h & 0x3FF;
+    var size = (h >>> 20) & 0xFFF;
+    if(size === 0xFFF){ if(p + 4 > buf.length) break; size = dv.getUint32(p, true); p += 4; }
+    if(p + size > buf.length) break;
+    if(tag === 66){ paras.push(''); }     /* HWPTAG_PARA_HEADER — 빈 문단도 한 줄이다 */
+    if(tag === 67){                       /* HWPTAG_PARA_TEXT */
+      var s = '', i = 0;
+      while(i + 1 < size){
+        var c = dv.getUint16(p + i, true);
+        if(c === 10 || c === 13){ s += '\n'; i += 2; }
+        else if(c < 32){ i += (WIDE[c] || INLINE[c]) ? 16 : 2; }
+        else { s += String.fromCharCode(c); i += 2; }
+      }
+      s = s.replace(/\n+$/, '');          /* 문단 끝 줄바꿈은 떼어 낸다 — 안 그러면 빈 줄이 겹친다 */
+      if(paras.length) paras[paras.length-1] = s; else paras.push(s);
+    }
+    p += size;
+  }
+  return paras.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/* ───────── 글자 뽑기 ───────── */
+function textFromXml(xml){
+  var paras = xml.match(/<hp:p[\s>][\s\S]*?<\/hp:p>/g) || [];
+  var out = [], i, j;
+  for(i = 0; i < paras.length; i++){
+    var ts = paras[i].match(/<hp:t[^>]*>([\s\S]*?)<\/hp:t>/g) || [];
+    var line = '';
+    for(j = 0; j < ts.length; j++){
+      var inner = ts[j].replace(/^<hp:t[^>]*>/, '').replace(/<\/hp:t>$/, '');
+      inner = inner.replace(/<hp:lineBreak[^>]*\/>/g, '\n').replace(/<[^>]+>/g, '');
+      line += inner;
+    }
+    out.push(unesc(line));
+  }
+  if(!paras.length){
+    var all = xml.match(/<hp:t[^>]*>([\s\S]*?)<\/hp:t>/g) || [];
+    for(i = 0; i < all.length; i++){
+      out.push(unesc(all[i].replace(/^<hp:t[^>]*>/, '').replace(/<\/hp:t>$/, '').replace(/<[^>]+>/g, '')));
+    }
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+function unesc(s){
+  return s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"')
+          .replace(/&apos;/g,"'").replace(/&#(\d+);/g,function(_,n){return String.fromCharCode(+n);})
+          .replace(/&amp;/g,'&');
+}
+
+/* ───────── 화면 ───────── */
+var $ = function(id){ return document.getElementById(id); };
+var state = { text:'', img:null, base:'문서' };
+
+function toast(m){ var t = $('toast'); t.textContent = m; t.className = 'on';
+  setTimeout(function(){ t.className=''; }, 1800); }
+function say(cls, html){ $('msg').innerHTML = '<div class="msg ' + cls + '">' + html + '</div>'; }
+function clearSay(){ $('msg').innerHTML = ''; }
+
+function open2(file){
+  clearSay();
+  state.base = file.name.replace(/\.(hwpx|hwp)$/i, '') || '문서';
+  $('fname').textContent = file.name;
+  var low = file.name.toLowerCase();
+
+  var fr = new FileReader();
+  fr.onload = function(){
+    var head = new Uint8Array(fr.result, 0, 8);
+    if(isOle(head)){ openOldHwp(fr.result); return; }
+    var z;
+    try { z = zipEntries(fr.result); }
+    catch(e){
+      $('out').style.display = 'none';
+      say('bad', '<b>읽지 못했습니다.</b><br>한글 파일(.hwp 또는 .hwpx)이 맞는지 봐 주십시오.');
+      return;
+    }
+    var secName = findName(z, /^Contents\/section\d+\.xml$/i);
+    var prvName = findName(z, /^Preview\/PrvImage\.(png|jpg|jpeg)$/i);
+    var jobs = [];
+    jobs.push(secName ? getFile(z, secName) : Promise.resolve(null));
+    jobs.push(prvName ? getFile(z, prvName) : Promise.resolve(null));
+    jobs.push(getFile(z, 'Preview/PrvText.txt'));
+
+    Promise.all(jobs).then(function(r){
+      var sec = r[0], prv = r[1], prvtxt = r[2];
+      var txt = '';
+      if(sec) txt = textFromXml(new TextDecoder('utf-8').decode(sec));
+      if(!txt && prvtxt) txt = new TextDecoder('utf-8').decode(prvtxt).trim();
+
+      /* 여러 쪽이면 section1, 2 … 도 이어 붙인다 */
+      var more = z.list.filter(function(e){ return /^Contents\/section\d+\.xml$/i.test(e.name); })
+                       .map(function(e){ return e.name; }).sort();
+      if(more.length > 1){
+        Promise.all(more.slice(1).map(function(nm){ return getFile(z, nm); })).then(function(xs){
+          for(var i = 0; i < xs.length; i++){
+            if(xs[i]) txt += '\n\n' + textFromXml(new TextDecoder('utf-8').decode(xs[i]));
+          }
+          show(txt, prv);
+        });
+      } else {
+        show(txt, prv);
+      }
+    }).catch(function(){
+      $('out').style.display = 'none';
+      say('bad', '<b>푸는 데 실패했습니다.</b><br>브라우저가 오래된 것일 수 있습니다. 크롬이나 사파리 최신판에서 열어 보십시오.');
+    });
+  };
+  fr.readAsArrayBuffer(file);
+}
+
+/* ───────── 옛 .hwp 열기 ───────── */
+function openOldHwp(buf){
+  var f;
+  try { f = cfbOpen(buf); }
+  catch(e){
+    $('out').style.display = 'none';
+    say('bad', '<b>읽지 못했습니다.</b><br>파일이 상했을 수 있습니다.');
+    return;
+  }
+  var prvE = f.find('PrvImage');
+  var prv  = prvE ? f.read(prvE) : null;
+
+  var fhE = f.find('FileHeader');
+  var compressed = true, encrypted = false;
+  if(fhE){
+    var fh = f.read(fhE);
+    if(fh && fh.length >= 40){
+      var fdv = new DataView(fh.buffer, fh.byteOffset, fh.length);
+      var flags = fdv.getUint32(36, true);
+      compressed = !!(flags & 1);
+      encrypted  = !!(flags & 2);
+    }
+  }
+  if(encrypted){
+    show('', prv);
+    say('warn', '<b>암호가 걸린 문서입니다.</b> 글자는 못 뽑습니다. 보이는 그대로만 보여 드립니다.');
+    return;
+  }
+  var secs = f.findAll(/^Section\d+$/);
+  var jobs = secs.map(function(e){
+    var raw = f.read(e);
+    if(!raw) return Promise.resolve(null);
+    if(!compressed) return Promise.resolve(raw);
+    return inflate(raw).catch(function(){ return null; });
+  });
+  Promise.all(jobs).then(function(list){
+    var parts = [];
+    for(var i = 0; i < list.length; i++){
+      if(!list[i]) continue;
+      var t = hwpRecordsToText(list[i]);
+      if(t) parts.push(t);
+    }
+    var txt = parts.join('\n\n').trim();
+    if(!txt){
+      var ptE = f.find('PrvText');
+      if(ptE){
+        var pt = f.read(ptE);
+        if(pt){
+          var s2 = '';
+          for(var k = 0; k + 1 < pt.length; k += 2) s2 += String.fromCharCode(pt[k] | (pt[k+1] << 8));
+          txt = s2.replace(/\r\n/g, '\n').replace(/\u0000/g, '').trim();
+        }
+      }
+    }
+    show(txt, prv);
+  }).catch(function(){ show('', prv); });
+}
+
+function show(txt, prv){
+  state.text = txt || '';
+  $('ta').value = state.text || '(글자를 찾지 못했습니다)';
+  if(prv){
+    if(state.img) URL.revokeObjectURL(state.img);
+    state.img = URL.createObjectURL(new Blob([prv], {type:'image/png'}));
+    $('shot').src = state.img;
+    $('p1').style.display = ''; $('t1').style.display = '';
+    tab(1);
+  } else {
+    state.img = null;
+    $('t1').style.display = 'none';
+    tab(2);
+    say('warn', '이 파일에는 <b>미리보기 그림이 없습니다.</b> 글자만 보여 드립니다.');
+  }
+  $('out').style.display = 'block';
+  if(!txt && !prv) say('bad', '<b>아무것도 못 꺼냈습니다.</b><br>한글에서 다시 저장한 뒤 열어 보십시오.');
+}
+
+function tab(n){
+  $('t1').className = n === 1 ? 'on' : '';
+  $('t2').className = n === 2 ? 'on' : '';
+  $('p1').className = n === 1 ? 'pane on' : 'pane';
+  $('p2').className = n === 2 ? 'pane on' : 'pane';
+}
+
+/* 연결 */
+$('pick').onclick = function(){ $('f').click(); };
+$('f').onchange = function(){ if(this.files && this.files[0]) open2(this.files[0]); };
+$('t1').onclick = function(){ tab(1); };
+$('t2').onclick = function(){ tab(2); };
+
+var drop = $('drop');
+['dragenter','dragover'].forEach(function(ev){
+  drop.addEventListener(ev, function(e){ e.preventDefault(); drop.className = 'hot'; });
+});
+['dragleave','drop'].forEach(function(ev){
+  drop.addEventListener(ev, function(e){ e.preventDefault(); drop.className = ''; });
+});
+drop.addEventListener('drop', function(e){
+  if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) open2(e.dataTransfer.files[0]);
+});
+
+function dlBlob(blob, name){
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+$('save').onclick = function(){
+  if(!state.img){ toast('그림이 없습니다'); return; }
+  fetch(state.img).then(function(r){ return r.blob(); }).then(function(b){
+    dlBlob(b, state.base + '.png'); toast('사진으로 저장했습니다');
+  });
+};
+$('dl').onclick = function(){
+  dlBlob(new Blob([state.text], {type:'text/plain;charset=utf-8'}), state.base + '.txt');
+  toast('글 파일로 저장했습니다');
+};
+function oldCopy(t){
+  try{
+    var ta = document.createElement('textarea');
+    ta.value = t; ta.style.position='fixed'; ta.style.top='0'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0, t.length);
+    var ok = document.execCommand && document.execCommand('copy');
+    document.body.removeChild(ta); return !!ok;
+  }catch(e){ return false; }
+}
+$('copy').onclick = function(){
+  var t = state.text;
+  if(!t){ toast('복사할 글자가 없습니다'); return; }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(
+      function(){ toast('복사했습니다'); },
+      function(){ if(oldCopy(t)) toast('복사했습니다'); else { $('ta').focus(); $('ta').select(); toast('글을 길게 눌러 복사하십시오'); } });
+    return;
+  }
+  if(oldCopy(t)) toast('복사했습니다');
+  else { $('ta').focus(); $('ta').select(); toast('글을 길게 눌러 복사하십시오'); }
+};
+</script>
+</body>
+</html>
